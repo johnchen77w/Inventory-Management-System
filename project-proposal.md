@@ -58,7 +58,7 @@ Beyond infrastructure, the application provides: JWT-based authentication with r
 
 ### Scope and Feasibility
 
-As a two-member team, our target is 1,000+ meaningful lines of code per member (2,000+ total). Based on our estimation — approximately 1,800 lines for the Python backend, 400 lines for Kubernetes manifests, 150 lines for monitoring configuration, and 1,200 lines for the optional Next.js frontend — we expect to produce roughly 4,000+ total lines, comfortably exceeding the requirement. The scope is focused on a single, well-defined domain (inventory management) with clear CRUD semantics, making it achievable within the 5-week development window while still demonstrating all required cloud technologies.
+As a four-member team, our target is 1,000+ meaningful lines of code per member (2,000+ total). Based on our estimation — approximately 1,800 lines for the Python backend, 400 lines for Kubernetes manifests, 150 lines for monitoring configuration, and 1,200 lines for the optional Next.js frontend — we expect to produce roughly 4,000+ total lines, comfortably exceeding the requirement. The scope is focused on a single, well-defined domain (inventory management) with clear CRUD semantics, making it achievable within the 5-week development window while still demonstrating all required cloud technologies.
 
 ---
 
@@ -66,21 +66,29 @@ As a two-member team, our target is 1,000+ meaningful lines of code per member (
 
 ### Responsibility Breakdown
 
-**[Member 1]** will focus on the **backend and data layer**: FastAPI application, database schema, authentication, WebSocket implementation, Prometheus metrics, and automated tests.
+**[Member 1]** – Backend Core
+Will implement the FastAPI application and authentication system, and will also write automated tests for backend endpoints.
 
-**[Member 2]** will focus on **infrastructure and frontend**: Docker/Docker Compose configuration, Kubernetes manifests, Fly.io deployment, Grafana dashboards, serverless function, CI/CD pipeline, and the Next.js frontend.
+**[Member 2]** – Data & Real-Time Layer
+Will design the database schema and implement the WebSocket functionality, ans will integrate Prometheus metrics for backend monitoring.
 
-Both members will collaborate on architecture decisions, code reviews (via GitHub pull requests), and integration testing.
+**[Member 3]** – Infrastructure & Deployment
+Will configure Docker/Docker Compose and prepare Kubernetes manifests, and will manage Fly.io deployment and implement the CI/CD pipeline.
+
+**[Member 4]** – Frontend & Monitoring
+Will develop the Next.js frontend and implement the serverless function, and will build Grafana dashboards connected to Prometheus metrics.
+
+All members will collaborate on architecture decisions, code reviews (via GitHub pull requests), and integration testing.
 
 ### Week-by-Week Plan
 
 **Week 1 (Feb 24 – Mar 2):** Finalize and submit proposal. Set up GitHub repository with branch protection and issue templates. Initialize Docker Compose with PostgreSQL and a skeleton FastAPI app. Design and implement the database schema with Alembic migrations. Seed sample data.
 
-**Week 2 (Mar 3 – Mar 9):** [Member 1] implements JWT authentication, role-based access control, and item CRUD endpoints with full test coverage. [Member 2] writes multi-stage Dockerfiles, refines Docker Compose for all services (API, Redis, Prometheus, Grafana), and begins the Next.js frontend skeleton.
+**Week 2 (Mar 3 – Mar 9):** Implement JWT authentication, role-based access control, and item CRUD endpoints with full test coverage. Write multi-stage Dockerfiles, refine Docker Compose for all services (API, Redis, Prometheus, Grafana), and begin the Next.js frontend skeleton.
 
-**Week 3 (Mar 10 – Mar 16):** [Member 1] implements WebSocket real-time updates with Redis Pub/Sub, search/filter endpoints, and the audit log system. [Member 2] creates all Kubernetes manifests (minikube), configures Grafana dashboards, and builds the inventory UI pages.
+**Week 3 (Mar 10 – Mar 16):** Implement WebSocket real-time updates with Redis Pub/Sub, search/filter endpoints, and the audit log system. Create all Kubernetes manifests (minikube), configure Grafana dashboards, and build the inventory UI pages.
 
-**Week 4 (Mar 17 – Mar 24):** [Member 1] implements the serverless low-stock alert function (DO Functions + SendGrid) and remaining API endpoints (alerts, dashboard). [Member 2] deploys to Fly.io, configures edge routing across regions, and sets up the GitHub Actions CI/CD pipeline. Both members prepare the presentation. **Milestone: all core features working locally and/or deployed by Mar 24.**
+**Week 4 (Mar 17 – Mar 24):** Implement the serverless low-stock alert function (DO Functions + SendGrid) and remaining API endpoints (alerts, dashboard). Deploy to Fly.io, configure edge routing across regions, and set up the GitHub Actions CI/CD pipeline. Prepare the presentation. **Milestone: all core features working locally and/or deployed by Mar 24.**
 
 **Week 5 (Mar 25 – Apr 4):** Polish deployment, fix bugs, configure automated backups, record the video demo, and write the final report (README.md) and AI interaction record (ai-session.md).
 
@@ -92,17 +100,17 @@ Both members will collaborate on architecture decisions, code reviews (via GitHu
 
 We chose **Fly.io** as the deployment provider because the project's example idea for an Inventory Management System specifically pairs it with Fly.io, and because Fly.io's edge routing capabilities directly support our planned advanced feature of low-latency global access. We selected **Kubernetes (Option B)** over Docker Swarm because Kubernetes is the industry-dominant orchestration platform, and gaining practical experience with Deployments, StatefulSets, and PVCs aligns with our professional development goals. For persistent storage, we chose Fly.io Volumes for the cloud deployment and DigitalOcean Volumes (via PVCs) for the Kubernetes cluster, as both are explicitly recommended in the course guidelines.
 
-We chose **Python with FastAPI** over Node.js because both team members have stronger Python experience, FastAPI provides native async support and built-in WebSocket handling, and its automatic OpenAPI documentation will simplify API testing during development.
+We chose **Python with FastAPI** over Node.js because all team members have stronger Python experience, FastAPI provides native async support and built-in WebSocket handling, and its automatic OpenAPI documentation will simplify API testing during development.
 
 ### Anticipated Challenges
 
-We expected **Kubernetes configuration** to be the most difficult aspect of the project. Neither team member has prior experience writing Kubernetes manifests from scratch, and the interplay between StatefulSets, PVCs, Secrets, and Services involves many configuration details where a single misconfigured field can cause cascading failures. We anticipated significant debugging time for pod crash loops and networking issues.
+We expected **Kubernetes configuration** to be the most difficult aspect of the project. None of the team member have prior experience writing Kubernetes manifests from scratch, and the interplay between StatefulSets, PVCs, Secrets, and Services involves many configuration details where a single misconfigured field can cause cascading failures. We anticipated significant debugging time for pod crash loops and networking issues.
 
 Our second concern was **WebSocket scaling across multiple replicas**. A WebSocket event published on one API replica would not automatically reach clients connected to other replicas. We identified early that some form of message broker (likely Redis) would be needed to bridge this gap, but we were uncertain about the implementation complexity.
 
 ### Early Development Approach
 
-Our initial strategy was to build the application in layers: start with a working monolith (single FastAPI app with PostgreSQL in Docker Compose), validate all features locally, then progressively add orchestration (Kubernetes), monitoring (Prometheus/Grafana), and advanced features (WebSockets, serverless, edge routing). We divided responsibilities by skill set — one member stronger in backend/API development, the other in infrastructure/DevOps — to minimize blocking dependencies and allow parallel progress.
+Our initial strategy was to build the application in layers: start with a working monolith (single FastAPI app with PostgreSQL in Docker Compose), validate all features locally, then progressively add orchestration (Kubernetes), monitoring (Prometheus/Grafana), and advanced features (WebSockets, serverless, edge routing). We divided responsibilities by skill set — two member stronger in backend/API development, the others in infrastructure/DevOps — to minimize blocking dependencies and allow parallel progress.
 
 ---
 
