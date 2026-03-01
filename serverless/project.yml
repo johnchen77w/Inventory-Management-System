@@ -1,0 +1,20 @@
+# DigitalOcean Functions project configuration
+# Deploy with: doctl serverless deploy serverless/
+# Get function URL: doctl serverless functions get alerts/low_stock --url
+#
+# Set the function URL in Fly.io:
+#   fly secrets set LOW_STOCK_FUNCTION_URL="<url from above>"
+#
+# Set the function URL in K8s:
+#   Update the LOW_STOCK_FUNCTION_URL value in k8s/secrets.yml
+
+packages:
+  - name: alerts
+    functions:
+      - name: low_stock
+        runtime: python:3.11
+        main: __main__.py
+        web: true
+        parameters:
+          SENDGRID_API_KEY: "${SENDGRID_API_KEY}"
+          ALERT_FROM_EMAIL: "${ALERT_FROM_EMAIL}"

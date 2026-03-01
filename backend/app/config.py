@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     alert_from_email: str = "alerts@inventory-app.com"
     low_stock_function_url: str = ""
     primary_region: str = "yyz"
+    environment: str = "production"
+    cors_origins: str = "*"
 
     class Config:
         env_file = ".env"
