@@ -34,6 +34,9 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
+          env:
+            - name: HOSTNAME
+              value: "0.0.0.0"
           # NOTE: NEXT_PUBLIC_API_URL is baked in at Docker build time.
           # Build with: docker build --build-arg NEXT_PUBLIC_API_URL=http://<api-lb-ip> -t inventory-frontend:latest ./frontend
           resources:
