@@ -1,12 +1,12 @@
 """Test fixtures for the Inventory Management System API."""
 import pytest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
-from app.main import app
 from app.models.user import User, UserRole
 from app.utils.security import hash_password, create_access_token
 
@@ -42,6 +42,8 @@ def db():
 @pytest.fixture
 def client(db):
     """Provide a test client with overridden DB dependency."""
+    from app.main import app
+
     def override_get_db():
         try:
             yield db
@@ -49,8 +51,12 @@ def client(db):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as c:
-        yield c
+
+    # Patch SessionLocal so seed_admin() in the lifespan also uses the test DB
+    with patch("app.main.SessionLocal", TestingSessionLocal):
+        with TestClient(app) as c:
+            yield c
+
     app.dependency_overrides.clear()
 
 

@@ -25,5 +25,5 @@ class Item(Base):
 
     category: Mapped["Category | None"] = relationship(back_populates="items")
     location: Mapped["Location | None"] = relationship(back_populates="items")
-    inventory_logs: Mapped[list["InventoryLog"]] = relationship(back_populates="item")
-    alerts: Mapped[list["Alert"]] = relationship(back_populates="item")
+    inventory_logs: Mapped[list["InventoryLog"]] = relationship(back_populates="item", cascade="all, delete-orphan")
+    alerts: Mapped[list["Alert"]] = relationship(back_populates="item", cascade="all, delete-orphan")
