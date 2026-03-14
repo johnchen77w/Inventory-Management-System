@@ -1,0 +1,54 @@
+# Fly.io configuration for the backend API
+# Deploy with: fly deploy --config fly.toml
+#
+# Prerequisites:
+#   fly apps create inventory-api
+#   fly postgres create --name inventory-db --region yyz
+#   fly postgres attach inventory-db --app inventory-api
+#   fly redis create --name inventory-redis --region yyz
+#
+# Set secrets:
+#   fly secrets set JWT_SECRET="$(openssl rand -hex 32)" \
+#     SENDGRID_API_KEY="SG.xxx" \
+#     ALERT_FROM_EMAIL="alerts@inventory-app.com" \
+#     DEFAULT_ADMIN_EMAIL="admin@example.com" \
+#     DEFAULT_ADMIN_PASSWORD="<strong-password>" \
+#     DEFAULT_ADMIN_NAME="System Admin" \
+#     REDIS_URL="<from fly redis status>" \
+#     LOW_STOCK_FUNCTION_URL="<from doctl serverless functions get>"
+#
+# Scale to multiple regions:
+#   fly regions add iad lhr
+#   fly scale count 3
+
+app = "ece1779-inventory-api"
+primary_region = "yyz"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8000"
+  PRIMARY_REGION = "yyz"
+  ENVIRONMENT = "production"
+  CORS_ORIGINS = "https://ece1779-inventory-app.fly.dev"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[checks]
+  [checks.health]
+    type = "http"
+    port = 8000
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
