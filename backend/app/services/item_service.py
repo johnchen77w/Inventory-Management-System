@@ -1,4 +1,6 @@
 import math
+import anyio
+from app.services.ws_manager import manager
 
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func as sa_func, or_
@@ -134,6 +136,16 @@ def restock_item(db: Session, item_id: int, quantity: int, notes: str | None, us
     db.add(log)
     db.commit()
 
+    emit_ws_event({
+        "type": "item_restocked",
+        "item_id": item.id,
+        "name": item.name,
+        "quantity_before": qty_before,
+        "quantity_after": item.quantity,
+        "changed_by": user.id,
+        "notes": notes or f"Restocked {quantity} units",
+    })
+
     return get_item(db, item.id)
 
 
@@ -165,4 +177,22 @@ def withdraw_item(db: Session, item_id: int, quantity: int, notes: str | None, u
         from app.services.alert_service import trigger_low_stock_alert
         trigger_low_stock_alert(db, item)
 
+    emit_ws_event({
+        "type": "item_withdrawn",
+        "item_id": item.id,
+        "name": item.name,
+        "quantity_before": qty_before,
+        "quantity_after": item.quantity,
+        "changed_by": user.id,
+        "notes": notes or f"Withdrew {quantity} units",
+    })
+
     return get_item(db, item.id)
+
+
+def emit_ws_event(event: dict):
+    try:
+        anyio.from_thread.run(manager.broadcast, event)
+    except Exception as e:
+        print("WS emit error:", repr(e))
+
