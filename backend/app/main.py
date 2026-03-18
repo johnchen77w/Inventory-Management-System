@@ -9,7 +9,7 @@ from app.database import SessionLocal
 from app.models.user import User
 from app.models.user import UserRole
 from app.utils.security import hash_password
-from app.routers import auth, users, categories, locations, items, logs, alerts, dashboard
+from app.routers import auth, users, categories, locations, items, logs, alerts, dashboard, ws
 
 
 def seed_admin():
@@ -69,6 +69,7 @@ app.include_router(items.router, prefix="/api/v1/items", tags=["items"])
 app.include_router(logs.router, prefix="/api/v1/logs", tags=["logs"])
 app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["alerts"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
+app.include_router(ws.router, prefix="/api/v1/ws", tags=["websocket"])
 
 
 @app.get("/health")
