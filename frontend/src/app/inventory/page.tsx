@@ -535,21 +535,31 @@ export default function InventoryPage() {
             className="border rounded-lg px-3 py-2"
           />
 
-          <input
-            type="number"
-            placeholder="Category ID"
+          <select
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
             className="border rounded-lg px-3 py-2"
-          />
+          >
+            <option value="">All Categories</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
 
-          <input
-            type="number"
-            placeholder="Location ID"
+          <select
             value={locationId}
             onChange={(e) => setLocationId(e.target.value)}
             className="border rounded-lg px-3 py-2"
-          />
+          >
+            <option value="">All Locations</option>
+            {locations.map((location) => (
+              <option key={location.id} value={location.id}>
+                {location.name}
+              </option>
+            ))}
+          </select>
 
           <input
             type="number"
