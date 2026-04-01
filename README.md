@@ -36,7 +36,7 @@ A cloud-native inventory management application with real-time stock tracking, r
 - [Deployment Information](#deployment-information)
   - [Live URL](#live-url)
   - [Fly.io Deployment](#flyio-deployment)
-  - [DigitalOcean Kubernetes Deployment](#digitalocean-kubernetes-deployment)
+  - [Kubernetes Deployment](#kubernetes-deployment)
 - [Architecture](#architecture)
   - [System Architecture Diagram](#system-architecture-diagram)
   - [Database Schema](#database-schema)
@@ -88,13 +88,13 @@ Specifically, the project aims to:
 
 1. Build a fully containerized multi-service application using Docker and Docker Compose, with a Python/FastAPI backend, PostgreSQL database, Redis message broker, and a Next.js frontend.
 
-2. Implement Kubernetes orchestration using minikube for local development and DigitalOcean Managed Kubernetes for production, including Deployments, Services, StatefulSets, and PersistentVolumeClaims.
+2. Implement Kubernetes orchestration using minikube, including Deployments, Services, StatefulSets, and PersistentVolumeClaims.
 
 3. Deploy the application to Fly.io with persistent volumes for PostgreSQL data durability, ensuring state survives container restarts and redeployments.
 
-4. Integrate comprehensive monitoring and observability through Fly.io built-in metrics, Prometheus for application-level metrics, and Grafana dashboards with alerting rules.
+4. Integrate comprehensive monitoring and observability through Prometheus for application-level metrics and Grafana dashboards with 12 pre-configured panels.
 
-5. Implement at least three advanced features: real-time WebSocket stock updates, serverless email notifications for low-stock alerts, and edge-optimized routing for low-latency global access.
+5. Implement five advanced features: real-time WebSocket updates with Redis Pub/Sub, serverless scale-to-zero on Fly Machines, multi-region edge deployment, JWT security with RBAC, and CI/CD with GitHub Actions.
 
 6. Deliver a polished, functional application with role-based access control (Manager/Staff), full CRUD operations, search and filtering, and an audit trail of all inventory changes.
 
@@ -111,11 +111,9 @@ Specifically, the project aims to:
 | Real-time | FastAPI WebSockets + Redis Pub/Sub | Live stock update broadcasting across replicas |
 | Message Broker | Redis 7 | WebSocket event distribution for multi-replica |
 | Containerization | Docker + Docker Compose | Multi-container local development environment |
-| Orchestration | Kubernetes (minikube / DO Managed K8s) | Service replication, load balancing, rolling updates |
-| Cloud Deployment | Fly.io | Edge-optimized PaaS with persistent volumes |
-| Monitoring | Prometheus + Grafana + Fly.io Metrics | Application and infrastructure observability |
-| Serverless | DigitalOcean Functions | Event-driven low-stock email notifications |
-| Email Service | SendGrid API | Transactional email delivery |
+| Orchestration | Kubernetes (minikube) | Service replication, load balancing, rolling updates |
+| Cloud Deployment | Fly.io | Edge-optimized PaaS with persistent volumes and serverless scale-to-zero |
+| Monitoring | Prometheus + Grafana | Application and infrastructure observability |
 | CI/CD | GitHub Actions | Automated testing, building, and deployment |
 | Frontend | Next.js 14 (React + TypeScript) | Dashboard UI for inventory management |
 
@@ -133,19 +131,23 @@ All core requirements mandated by the course project guidelines are fully implem
 
 **Deployment on Fly.io** — The application is deployed to Fly.io as the primary cloud provider. The API and WebSocket services run as separate Fly Machines with auto-start capabilities. PostgreSQL data is persisted on Fly Volumes mounted to the database container. HTTPS is enforced via Fly.io's built-in TLS termination.
 
-**Kubernetes Orchestration (Option B)** — Kubernetes is used for orchestration with minikube for local development and DigitalOcean Managed Kubernetes for production. The setup includes Deployments with replica scaling for the API service (3 replicas), a StatefulSet for PostgreSQL with a PersistentVolumeClaim, Services for internal networking and external LoadBalancer access, Secrets for credential management, and liveness/readiness probes for health monitoring.
+**Kubernetes Orchestration** — Kubernetes is used for orchestration with minikube. The setup includes 10 manifests: Deployments with replica scaling for the API (3 replicas), frontend (2 replicas), and WebSocket service (2 replicas), a StatefulSet for PostgreSQL with a 5Gi PersistentVolumeClaim, Redis, Prometheus, Grafana, a backup CronJob, Services for internal networking and external LoadBalancer access, Secrets for credential management, and liveness/readiness probes for health monitoring. Total: 14 running pods.
 
-**Monitoring and Observability** — A three-layer monitoring approach is implemented. Fly.io provides infrastructure-level metrics (CPU, memory, disk) and log aggregation. Prometheus scrapes application-level metrics from the `/metrics` endpoint, including custom gauges for inventory levels and WebSocket connections. Grafana visualizes all metrics through pre-configured dashboards for system health, inventory overview, and API performance. Alerting rules trigger notifications for high error rates, elevated latency, and critical low-stock levels.
+**Monitoring and Observability** — Prometheus scrapes application-level metrics from the `/metrics` endpoint exposed by `prometheus-fastapi-instrumentator`. Grafana visualizes all metrics through a pre-configured 12-panel dashboard: API Instances Up, Requests In Progress, Total Requests, Error Rate (5xx), HTTP Request Rate by handler, Response Status Codes, Request Duration p95 and p50, Process Memory RSS, CPU Usage, Python GC Collections Rate, and Open File Descriptors. Dashboards are auto-provisioned on both Docker Compose and minikube deployments.
 
 ### Advanced Features
 
-Three advanced features are implemented (course minimum: two):
+Five advanced features are implemented (course minimum: two):
 
 **1. Real-Time Functionality (WebSockets)** — When any user creates, updates, or deletes an inventory item or performs a restock/withdrawal, the change is broadcast in real time to all connected clients via WebSockets. The implementation uses FastAPI's native WebSocket support with Redis Pub/Sub as the message broker, enabling consistent event delivery across multiple API replicas. Events include `item_created`, `item_updated`, `item_deleted`, `stock_changed`, and `low_stock_alert`.
 
-**2. Serverless Email Notifications** — A serverless function deployed on DigitalOcean Functions monitors stock levels and sends email alerts via SendGrid when an item's quantity drops below its configured threshold. The function is triggered by an HTTP POST from the API service whenever a stock withdrawal or update causes a low-stock condition. Alert records are stored in the database and can be viewed and acknowledged by managers through the UI.
+**2. Serverless (Fly Machines Scale-to-Zero)** — Both the API and frontend are configured as serverless Fly Machines with `auto_stop_machines = true` and `min_machines_running = 0`. Machines automatically spin down when idle and cold-start on the next incoming request, eliminating costs during inactive periods. This is configured in `fly.toml` for both services.
 
-**3. Edge-Specific Optimizations** — The application is deployed across multiple Fly.io regions (Toronto `yyz`, Virginia `iad`, London `lhr`) with automatic region-based routing. Fly.io directs each request to the nearest healthy instance for minimal latency. Write operations that arrive at read-replica regions are automatically replayed to the primary region using Fly.io's `fly-replay` header mechanism, ensuring data consistency while maintaining read performance globally.
+**3. Multi-Region Edge Deployment** — The application is deployed across multiple Fly.io regions (Toronto `yyz` and Ashburn, Virginia `iad`) with automatic region-based routing. Fly.io's anycast network directs each request to the nearest healthy instance for minimal latency. The backend runs 3 machines (2 in yyz, 1 in iad) and the frontend runs 3 machines (2 in yyz, 1 in iad).
+
+**4. Security and RBAC** — JWT-based authentication with role-based access control (Manager/Staff). Managers have full CRUD, user management, and system-wide visibility. Staff can perform inventory operations and manage their own subscriptions. All endpoints are protected with appropriate role guards.
+
+**5. CI/CD (GitHub Actions)** — Two pipelines: `test.yml` runs automated tests on every pull request, `deploy.yml` auto-deploys to Fly.io on push to the main branch.
 
 ### Application Features
 
@@ -157,8 +159,10 @@ Beyond the cloud infrastructure requirements, the application provides a complet
 - **Search and filtering** by item name, SKU, category, location, and quantity range
 - **Low-stock threshold** configuration per item with automated alerting
 - **Audit trail** logging every inventory change with user attribution and timestamps
-- **Dashboard** with summary statistics, category breakdowns, and recent activity
-- **User management** for managers to create and manage staff accounts
+- **Dashboard** with summary statistics (total items, low stock count, categories)
+- **Public user registration** with role selection (Manager/Worker)
+- **Employee management** page for managers to view and remove users
+- **Email alert subscriptions** for restock, withdrawal, and low-stock events
 
 ---
 
@@ -170,17 +174,13 @@ Navigate to the application URL to reach the login page. Enter your email and pa
 
 After successful login, you receive a JWT token that is stored in the browser and automatically included in all subsequent requests. The token expires after 1 hour, with automatic refresh support.
 
-<!-- ![Login Page](screenshots/login.png) -->
-
-**Registering new users:** Managers can create new user accounts by navigating to the Users page and clicking "Add User." Specify the user's email, name, and role (Manager or Staff).
+**Registering new users:** Click "Create Account" on the login page to switch to the signup form. Enter first name, last name, email, password, and select a role (Worker or Manager). After registration, you can immediately log in with the new credentials.
 
 ### 2. Dashboard
 
-The dashboard is the landing page after login. It displays four summary cards showing total inventory items, total stock units, number of low-stock items requiring attention, and number of unacknowledged alerts.
+The dashboard is the landing page after login. It displays three summary cards: total inventory items, low-stock alerts count (clickable to filter), and number of categories.
 
-Below the summary cards, a category breakdown chart shows the distribution of items across categories, and a recent activity feed displays the latest inventory changes with timestamps and user attribution.
-
-<!-- ![Dashboard](screenshots/dashboard.png) -->
+Below the summary cards, Quick Actions provide navigation to Inventory, Email Alerts setup, and Employee management.
 
 ### 3. Inventory Management
 
@@ -223,21 +223,17 @@ All filters can be combined. Results update in real time as filters are applied.
 
 ### 6. Low-Stock Alerts
 
-When an item's quantity drops below its configured `low_stock_threshold`, the system automatically triggers a serverless function that sends an email to all Manager users via SendGrid. The email includes the item name, current quantity, threshold value, location, and a direct link to the item in the application.
+When an item's quantity drops below its configured `low_stock_threshold`, the system automatically creates a database alert record and sends a real-time WebSocket notification (red toast) to all connected users. Users who have subscribed to low-stock email alerts via the Email Alerts page will also receive notifications.
 
-Alerts are also displayed in the application on the Alerts page. Each alert shows the item, the alert message, the timestamp, and whether it has been acknowledged. Managers can click "Acknowledge" to mark an alert as handled.
-
-<!-- ![Alerts Page](screenshots/alerts.png) -->
+Alerts are stored in the database and can be viewed and acknowledged by managers.
 
 ### 7. Real-Time Updates
 
-All connected users receive live updates when inventory changes occur. A WebSocket connection indicator in the navigation bar shows the connection status (green = connected, red = disconnected). When a change occurs, a toast notification appears briefly showing the event type (e.g., "Widget A restocked: 50 → 100 units by john@example.com"). The inventory table and dashboard update automatically without requiring a page refresh.
-
-<!-- ![Real-Time Toast](screenshots/realtime-toast.png) -->
+All connected users receive live updates when inventory changes occur. When a restock, withdrawal, or low-stock event happens, a colored toast notification appears: green for restocks, yellow for withdrawals, and red for low-stock alerts. The notifications show item name, quantity change, and notes. Events are broadcast via Redis Pub/Sub to ensure all users across all server replicas receive them.
 
 ### 8. User Management (Manager Only)
 
-Navigate to the Users page to view all registered users. Managers can create new user accounts, assign roles (Manager or Staff), activate/deactivate accounts, and view each user's activity history.
+Navigate to the Employees page (accessible from the Dashboard Quick Actions). Managers can view all registered users in a table showing ID, name, email, role badge (Manager/Worker), active status, and join date. Managers can remove other users (but cannot remove themselves).
 
 ---
 
@@ -354,7 +350,7 @@ Once running, the services are available at:
 | Frontend | http://localhost:3000 |
 | API | http://localhost:8000 |
 | API Docs (Swagger) | http://localhost:8000/docs |
-| WebSocket | ws://localhost:8001/ws |
+| WebSocket | ws://localhost:8000/api/v1/ws/inventory |
 | Prometheus | http://localhost:9090 |
 | Grafana | http://localhost:3001 (admin/admin) |
 | PostgreSQL | localhost:5432 |
@@ -428,9 +424,9 @@ pytest --cov=app --cov-report=html tests/
 
 ### Live URL
 
-🌐 **Application:** [https://inventory-app.fly.dev](https://inventory-app.fly.dev)  
-🔌 **API:** [https://inventory-api.fly.dev](https://inventory-api.fly.dev)  
-📄 **API Docs:** [https://inventory-api.fly.dev/docs](https://inventory-api.fly.dev/docs)  
+🌐 **Application:** [https://ece1779-inventory-app.fly.dev](https://ece1779-inventory-app.fly.dev)
+🔌 **API:** [https://ece1779-inventory-api.fly.dev](https://ece1779-inventory-api.fly.dev)
+📄 **API Docs:** [https://ece1779-inventory-api.fly.dev/docs](https://ece1779-inventory-api.fly.dev/docs)
 
 > *Note: The deployment will remain online during the grading period. Contact the team if the application is temporarily unavailable.*
 
@@ -455,9 +451,8 @@ fly secrets set DATABASE_URL="..." JWT_SECRET="..." SENDGRID_API_KEY="..."
 # Deploy
 fly deploy
 
-# Scale to multiple regions
-fly regions add iad lhr
-fly scale count 3
+# Scale to multiple regions (yyz + iad)
+fly scale count 1 --region iad --app ece1779-inventory-api --yes
 
 # View logs
 fly logs
@@ -469,7 +464,7 @@ fly status
 **Fly.io configuration** (`fly.toml`):
 
 ```toml
-app = "inventory-api"
+app = "ece1779-inventory-api"
 primary_region = "yyz"
 
 [build]
@@ -478,13 +473,14 @@ primary_region = "yyz"
 [env]
   PORT = "8000"
   PRIMARY_REGION = "yyz"
+  ENVIRONMENT = "production"
 
 [http_service]
   internal_port = 8000
   force_https = true
-  auto_stop_machines = false
+  auto_stop_machines = true
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
 
 [checks]
   [checks.health]
@@ -494,34 +490,39 @@ primary_region = "yyz"
     interval = "30s"
     timeout = "5s"
 
-[mounts]
-  source = "pg_data"
-  destination = "/var/lib/postgresql/data"
-
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
   memory_mb = 512
 ```
 
-### DigitalOcean Kubernetes Deployment
+### Kubernetes Deployment
 
-For production Kubernetes deployment on DigitalOcean:
+Kubernetes orchestration is demonstrated on minikube with 10 manifests:
 
 ```bash
-# Configure kubectl to use DO cluster
-doctl kubernetes cluster kubeconfig save inventory-cluster
+# Start minikube and apply all manifests
+minikube start --cpus=4 --memory=4096
+eval $(minikube docker-env)
+docker build -t inventory-api:latest ./backend
+docker build -t inventory-frontend:latest ./frontend
+kubectl apply -f k8s/namespace.yml
+kubectl apply -f k8s/secrets.yml
+kubectl apply -f k8s/postgres-statefulset.yml
+kubectl apply -f k8s/redis-deployment.yml
+kubectl apply -f k8s/api-deployment.yml
+kubectl apply -f k8s/ws-deployment.yml
+kubectl apply -f k8s/frontend-deployment.yml
+kubectl apply -f k8s/backup-cronjob.yml
+kubectl apply -f k8s/monitoring/
 
-# Push images to registry
-docker tag inventory-api:latest registry.digitalocean.com/inventory/api:latest
-docker push registry.digitalocean.com/inventory/api:latest
-
-# Apply production manifests
-kubectl apply -f k8s/
-
-# Verify deployment
-kubectl get all -n inventory
+# Verify: 14 pods running
+kubectl get pods -n inventory
+kubectl get deployments -n inventory
+kubectl get pvc -n inventory
 ```
+
+Running pods: 3 API replicas, 2 frontend replicas, 2 WebSocket replicas, 1 PostgreSQL StatefulSet, 1 Redis, 1 Prometheus, 1 Grafana, plus backup CronJobs.
 
 ---
 
@@ -538,55 +539,52 @@ kubectl get all -n inventory
                ▼                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Fly.io Edge Network                        │
-│         Regions: yyz (Toronto), iad (Virginia), lhr (London)    │
-│              TLS termination  /  Region-based routing            │
-└──────────────┬──────────────────────────┬───────────────────────┘
-               │                          │
-               ▼                          ▼
-┌──────────────────────────────────────────────────────────────────┐
-│            Kubernetes Cluster (DigitalOcean Managed K8s)         │
-│                                                                  │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌────────────────┐   │
-│  │   API Service    │  │  WS Service     │  │   Frontend     │   │
-│  │   (FastAPI)      │  │  (FastAPI WS)   │  │   (Next.js)    │   │
-│  │   Replicas: 3    │  │  Replicas: 2    │  │   Replicas: 2  │   │
-│  └────────┬─────────┘  └────────┬────────┘  └────────────────┘   │
-│           │                     │                                 │
-│           ▼                     ▼                                 │
-│  ┌─────────────────┐  ┌─────────────────┐                       │
-│  │   PostgreSQL     │  │     Redis       │                       │
-│  │  (StatefulSet)   │  │   (Pub/Sub)     │                       │
-│  │  + PVC (5Gi)     │  │                 │                       │
-│  └─────────────────┘  └─────────────────┘                       │
-│                                                                  │
-│  ┌─────────────────┐  ┌─────────────────┐                       │
-│  │   Prometheus     │  │    Grafana      │                       │
-│  │   (Metrics)      │  │  (Dashboards)   │                       │
-│  └─────────────────┘  └─────────────────┘                       │
-│                                                                  │
-│  ┌─────────────────┐                                             │
-│  │  Backup CronJob  │ ──── pg_dump daily → DO Spaces             │
-│  └─────────────────┘                                             │
-└──────────────────────────────────────────────────────────────────┘
+│              Regions: yyz (Toronto), iad (Virginia)              │
+│     TLS termination / Region-based routing / Scale-to-zero      │
+│                                                                 │
+│  ┌──────────────────┐  ┌──────────────────┐                    │
+│  │  API Machines (3) │  │  Frontend (3)    │                    │
+│  │  yyz(2) + iad(1)  │  │  yyz(2) + iad(1) │                    │
+│  └────────┬─────────┘  └──────────────────┘                    │
+│           │                                                     │
+│           ▼                                                     │
+│  ┌──────────────────┐  ┌──────────────────┐                    │
+│  │  PostgreSQL (Fly) │  │  Redis (Upstash) │                    │
+│  │  Fly Volume 1GB   │  │  Pub/Sub broker  │                    │
+│  └──────────────────┘  └──────────────────┘                    │
+└─────────────────────────────────────────────────────────────────┘
 
-┌──────────────────────────────────────────────────────────────────┐
-│                    Serverless (DO Functions)                      │
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │  Low-Stock Alert Function                                  │  │
-│  │  Trigger: HTTP POST from API on stock below threshold      │  │
-│  │  Action: Send email via SendGrid to Manager(s)             │  │
-│  └────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                Kubernetes Cluster (minikube)                     │
+│                                                                 │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌────────────────┐  │
+│  │   API Service    │  │  WS Service     │  │   Frontend     │  │
+│  │   (FastAPI)      │  │  (FastAPI WS)   │  │   (Next.js)    │  │
+│  │   Replicas: 3    │  │  Replicas: 2    │  │   Replicas: 2  │  │
+│  └────────┬─────────┘  └────────┬────────┘  └────────────────┘  │
+│           │                     │                                │
+│           ▼                     ▼                                │
+│  ┌─────────────────┐  ┌─────────────────┐                      │
+│  │   PostgreSQL     │  │     Redis       │                      │
+│  │  (StatefulSet)   │  │   (Pub/Sub)     │                      │
+│  │  + PVC (5Gi)     │  │                 │                      │
+│  └─────────────────┘  └─────────────────┘                      │
+│                                                                 │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌────────────────┐  │
+│  │   Prometheus     │  │    Grafana      │  │  Backup        │  │
+│  │   (Metrics)      │  │  (Dashboards)   │  │  CronJob       │  │
+│  └─────────────────┘  └─────────────────┘  └────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
 
-┌──────────────────────────────────────────────────────────────────┐
-│                    CI/CD (GitHub Actions)                         │
-│  push to main → pytest → Docker build → Push image → fly deploy  │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    CI/CD (GitHub Actions)                        │
+│  push to main → pytest → Docker build → fly deploy              │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Database Schema
 
-The application uses six PostgreSQL tables:
+The application uses seven PostgreSQL tables:
 
 **`users`** — Stores user accounts with email, bcrypt-hashed password, full name, role (`manager` or `staff`), and active status.
 
@@ -600,6 +598,8 @@ The application uses six PostgreSQL tables:
 
 **`alerts`** — Records of low-stock alerts that have been triggered, including the item, alert message, recipient email, send timestamp, and acknowledgment status.
 
+**`email_subscriptions`** — Stores user email alert preferences with toggles for restock, withdrawal, and low-stock notifications, linked to user accounts.
+
 All tables use appropriate indexes on foreign keys, SKU, quantity, and timestamp columns for query performance.
 
 ### API Endpoints
@@ -608,6 +608,7 @@ All tables use appropriate indexes on foreign keys, SKU, quantity, and timestamp
 
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
+| `POST` | `/api/v1/auth/signup` | Public user registration | Public |
 | `POST` | `/api/v1/auth/register` | Register a new user | Manager |
 | `POST` | `/api/v1/auth/login` | Authenticate and receive JWT | Public |
 | `POST` | `/api/v1/auth/refresh` | Refresh an expired token | Authenticated |
@@ -654,9 +655,16 @@ All tables use appropriate indexes on foreign keys, SKU, quantity, and timestamp
 
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
+| `GET` | `/api/v1/users` | List all users | Manager |
+| `DELETE` | `/api/v1/users/{id}` | Remove a user | Manager |
+| `GET` | `/api/v1/email-subscriptions/me` | Get my subscriptions | Authenticated |
+| `GET` | `/api/v1/email-subscriptions` | List all subscriptions | Manager |
+| `POST` | `/api/v1/email-subscriptions` | Create a subscription | Authenticated |
+| `PUT` | `/api/v1/email-subscriptions/{id}` | Update a subscription | Authenticated |
+| `DELETE` | `/api/v1/email-subscriptions/{id}` | Delete a subscription | Authenticated |
 | `GET` | `/health` | Health check for K8s probes | Public |
 | `GET` | `/metrics` | Prometheus metrics endpoint | Internal |
-| `WSS` | `/ws?token=<JWT>` | WebSocket for real-time updates | Authenticated |
+| `WS` | `/api/v1/ws/inventory` | WebSocket for real-time updates | Public |
 
 **Query parameters for `GET /api/v1/items`:** `search` (name/SKU text search), `category_id`, `location_id`, `min_quantity`, `max_quantity`, `below_threshold` (boolean), `sort_by` (name, quantity, updated_at, price), `order` (asc/desc), `page`, `per_page`.
 
@@ -723,4 +731,4 @@ In conclusion, this project provided hands-on experience with the full cloud-nat
 
 ---
 
-*Last updated: April 4, 2026*
+*Last updated: April 1, 2026*
