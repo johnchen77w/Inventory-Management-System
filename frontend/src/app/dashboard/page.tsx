@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
+import { useWebSocket } from "@/lib/useWebSocket";
+import AlertToast from "@/lib/AlertToast";
 
 type User = {
   email: string;
@@ -25,6 +27,7 @@ type Category = {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { alerts, dismissAlert } = useWebSocket();
 
   const [user, setUser] = useState<User | null>(null);
   const [totalItems, setTotalItems] = useState(0);
@@ -136,6 +139,7 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen p-8 bg-gray-50">
+      <AlertToast alerts={alerts} onDismiss={dismissAlert} />
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <button
@@ -185,6 +189,18 @@ export default function DashboardPage() {
             className="border px-4 py-2 rounded-lg bg-white"
           >
             Go to Inventory
+          </button>
+          <button
+            onClick={() => router.push("/email-alerts")}
+            className="border px-4 py-2 rounded-lg bg-white"
+          >
+            Setup Email Alerts
+          </button>
+          <button
+            onClick={() => router.push("/employees")}
+            className="border px-4 py-2 rounded-lg bg-white"
+          >
+            Employees
           </button>
         </div>
       </div>

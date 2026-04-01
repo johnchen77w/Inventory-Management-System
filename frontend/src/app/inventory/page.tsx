@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
+import { useWebSocket } from "@/lib/useWebSocket";
+import AlertToast from "@/lib/AlertToast";
 
 type Item = {
   id: number | string;
@@ -34,6 +36,7 @@ type Location = {
 
 export default function InventoryPage() {
   const router = useRouter();
+  const { alerts, dismissAlert } = useWebSocket();
 
   const [items, setItems] = useState<Item[]>([]);
   const [total, setTotal] = useState(0);
@@ -52,6 +55,8 @@ export default function InventoryPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [userRole, setUserRole] = useState<string>("");
+  const isManager = userRole === "manager";
 
   // ⭐ Add Item states
   const [showForm, setShowForm] = useState(false);
@@ -254,6 +259,34 @@ export default function InventoryPage() {
     }
   };
 
+  const handleRestock = async (item: Item) => {
+    const input = window.prompt(`Restock "${item.name}" — enter quantity to add:`);
+    if (!input) return;
+    const qty = Number(input);
+    if (!qty || qty <= 0) { alert("Please enter a positive number."); return; }
+    try {
+      await api.post(`/api/v1/items/${item.id}/restock`, { quantity: qty });
+      fetchItems();
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Restock failed";
+      alert(message);
+    }
+  };
+
+  const handleWithdraw = async (item: Item) => {
+    const input = window.prompt(`Withdraw from "${item.name}" (available: ${item.quantity}) — enter quantity:`);
+    if (!input) return;
+    const qty = Number(input);
+    if (!qty || qty <= 0) { alert("Please enter a positive number."); return; }
+    try {
+      await api.post(`/api/v1/items/${item.id}/withdraw`, { quantity: qty });
+      fetchItems();
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Withdraw failed";
+      alert(message);
+    }
+  };
+
   const handleEditClick = (item: Item) => {
     setEditingId(item.id);
     setShowForm(true);
@@ -295,6 +328,10 @@ export default function InventoryPage() {
     fetchItems();
     fetchCategories();
     fetchLocations();
+
+    api.get("/api/v1/auth/me").then((res) => {
+      setUserRole(res.data.role);
+    }).catch(() => {});
   }, [router, page, belowThreshold]);
 
   const handleSearch = () => {
@@ -349,17 +386,20 @@ export default function InventoryPage() {
 
   return (
     <main className="min-h-screen p-8 bg-gray-50">
+      <AlertToast alerts={alerts} onDismiss={dismissAlert} />
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold">Inventory</h1>
 
         <div className="flex gap-3">
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="bg-black text-white px-4 py-2 rounded-lg"
-          >
-            Add Item
-          </button>
-          
+          {isManager && (
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="bg-black text-white px-4 py-2 rounded-lg"
+            >
+              Add Item
+            </button>
+          )}
+
           <button
             onClick={() => router.push("/dashboard")}
             className="border px-4 py-2 rounded-lg bg-white"
@@ -682,18 +722,36 @@ export default function InventoryPage() {
                       <td className="p-4">
                         <div className="flex gap-2">
                           <button
-                            onClick={() => handleEditClick(item)}
-                            className="border px-3 py-1 rounded bg-white"
+                            onClick={() => handleRestock(item)}
+                            className="bg-green-600 text-white px-3 py-1 rounded"
                           >
-                            Edit
+                            Restock
                           </button>
 
                           <button
-                            onClick={() => handleDelete(item.id)}
-                            className="bg-red-600 text-white px-3 py-1 rounded"
+                            onClick={() => handleWithdraw(item)}
+                            className="bg-yellow-500 text-white px-3 py-1 rounded"
                           >
-                            Delete
+                            Withdraw
                           </button>
+
+                          {isManager && (
+                            <>
+                              <button
+                                onClick={() => handleEditClick(item)}
+                                className="border px-3 py-1 rounded bg-white"
+                              >
+                                Edit
+                              </button>
+
+                              <button
+                                onClick={() => handleDelete(item.id)}
+                                className="bg-red-600 text-white px-3 py-1 rounded"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

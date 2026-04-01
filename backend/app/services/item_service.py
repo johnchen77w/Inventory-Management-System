@@ -1,6 +1,7 @@
 import math
 import anyio
 from app.services.ws_manager import manager
+import json
 
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func as sa_func, or_
@@ -110,11 +111,10 @@ def update_item(db: Session, item_id: int, data: ItemUpdate, user: User) -> Item
 
 def delete_item(db: Session, item_id: int, user: User) -> None:
     item = get_item(db, item_id)
-    log = InventoryLog(
-        item_id=item.id, user_id=user.id, action=LogAction.delete,
-        quantity_before=item.quantity, quantity_after=0, notes="Item deleted",
-    )
-    db.add(log)
+    # Delete related logs and alerts first to avoid FK constraint violations
+    db.query(InventoryLog).filter(InventoryLog.item_id == item.id).delete()
+    from app.models.alert import Alert
+    db.query(Alert).filter(Alert.item_id == item.id).delete()
     db.delete(item)
     db.commit()
 
@@ -144,7 +144,7 @@ def restock_item(db: Session, item_id: int, quantity: int, notes: str | None, us
         "quantity_after": item.quantity,
         "changed_by": user.id,
         "notes": notes or f"Restocked {quantity} units",
-    })
+    }, db)
 
     return get_item(db, item.id)
 
@@ -174,8 +174,20 @@ def withdraw_item(db: Session, item_id: int, quantity: int, notes: str | None, u
 
     # Check low stock threshold
     if item.quantity < item.low_stock_threshold:
-        from app.services.alert_service import trigger_low_stock_alert
-        trigger_low_stock_alert(db, item)
+        try:
+            from app.services.alert_service import trigger_low_stock_alert
+            trigger_low_stock_alert(db, item)
+        except Exception as e:
+            print("Low stock alert DB error:", repr(e))
+        emit_ws_event({
+            "type": "low_stock_alert",
+            "item_id": item.id,
+            "name": item.name,
+            "sku": item.sku,
+            "quantity": item.quantity,
+            "threshold": item.low_stock_threshold,
+            "location": item.location.name if item.location else "Unknown",
+        }, db)
 
     emit_ws_event({
         "type": "item_withdrawn",
@@ -185,14 +197,25 @@ def withdraw_item(db: Session, item_id: int, quantity: int, notes: str | None, u
         "quantity_after": item.quantity,
         "changed_by": user.id,
         "notes": notes or f"Withdrew {quantity} units",
-    })
+    }, db)
 
     return get_item(db, item.id)
 
 
-def emit_ws_event(event: dict):
+def emit_ws_event(event: dict, db: Session | None = None):
     try:
-        anyio.from_thread.run(manager.broadcast, event)
+        anyio.from_thread.run(manager.publish, event)
     except Exception as e:
         print("WS emit error:", repr(e))
+
+    # Send email notifications to subscribers
+    if db:
+        try:
+            from app.services.email_subscription_service import get_subscribers_for_event
+            from app.services.email_notification_service import send_event_emails
+            emails = get_subscribers_for_event(db, event["type"])
+            if emails:
+                send_event_emails(emails, event)
+        except Exception as e:
+            print("Email notification error:", repr(e))
 

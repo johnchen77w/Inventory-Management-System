@@ -25,3 +25,4 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     inventory_logs: Mapped[list["InventoryLog"]] = relationship(back_populates="user", foreign_keys="InventoryLog.user_id")
+    email_subscriptions: Mapped[list["EmailSubscription"]] = relationship(back_populates="user")
