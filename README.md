@@ -49,10 +49,15 @@ A cloud-native inventory management application with real-time stock tracking, r
 
 ## Team Information
 
-| Name | Student Number | Email |
-|------|---------------|-------|
-| [Member 1 Name] | [Student Number] | [email@mail.utoronto.ca] |
-| [Member 2 Name] | [Student Number] | [email@mail.utoronto.ca] |
+**[Member 1] — Backend Core:** FastAPI application structure, authentication system (JWT + RBAC), all core CRUD endpoints (items, categories, locations, alerts, dashboard), and automated backend unit and integration tests.
+
+**[Member 2] — Data & Real-Time Layer:** Database schema design, Alembic migrations, seed data scripts, WebSocket real-time update system with Redis Pub/Sub, search/filter/dashboard endpoints, and the audit log system.
+
+**[Member 3] — Infrastructure & Deployment:** Docker multi-stage builds, Docker Compose configuration, all Kubernetes manifests (Deployments, StatefulSet, Services, PVCs, Secrets), Fly.io deployment, edge routing configuration, automated database backup CronJob, and CI/CD pipeline (GitHub Actions).
+
+**[Member 4] — Frontend & Monitoring:** Next.js frontend (all pages, components, and WebSocket client hooks), serverless low-stock alert function (DO Functions + SendGrid), Prometheus metrics integration (custom gauges and `/metrics` endpoint), Grafana dashboard configuration, and alerting rules.
+
+All four members will collaborate on architecture decisions, code reviews via GitHub pull requests, and integration testing.
 
 **Programming Language:** Python (backend), TypeScript (frontend)
 
