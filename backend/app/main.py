@@ -9,7 +9,8 @@ from app.database import SessionLocal
 from app.models.user import User
 from app.models.user import UserRole
 from app.utils.security import hash_password
-from app.routers import auth, users, categories, locations, items, logs, alerts, dashboard, ws
+from app.routers import auth, users, categories, locations, items, logs, alerts, dashboard, ws, email_subscriptions
+from app.services.ws_manager import manager
 
 
 def seed_admin():
@@ -36,8 +37,10 @@ def seed_admin():
 async def lifespan(app: FastAPI):
     # Startup: seed default admin (migrations handled by start.sh)
     seed_admin()
+    await manager.start()
     yield
     # Shutdown
+    await manager.stop()
 
 
 app = FastAPI(
@@ -70,6 +73,7 @@ app.include_router(logs.router, prefix="/api/v1/logs", tags=["logs"])
 app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["alerts"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(ws.router, prefix="/api/v1/ws", tags=["websocket"])
+app.include_router(email_subscriptions.router, prefix="/api/v1/email-subscriptions", tags=["email-subscriptions"])
 
 
 @app.get("/health")
