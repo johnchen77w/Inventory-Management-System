@@ -62,7 +62,7 @@ Credentials sent to TA.
 
 ## Video Demo
 
-🎬 **[Video Demo Link — TODO: Insert YouTube/Google Drive URL here]**
+🎬 **[Video Demo](https://youtu.be/XXeAWOUmLHg)**
 
 The demo showcases: user authentication and role-based access, full inventory CRUD operations, real-time WebSocket stock updates, the monitoring dashboard (Prometheus + Grafana), Kubernetes orchestration with service replication, serverless low-stock email notifications, edge routing across Fly.io regions, and the application running in the deployed cloud environment.
 
